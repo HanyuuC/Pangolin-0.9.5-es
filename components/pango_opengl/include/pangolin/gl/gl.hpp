@@ -32,6 +32,7 @@
 #include <pangolin/image/image_io.h>
 #include <pangolin/utils/type_convert.h>
 #include <algorithm>
+#include <cstring>
 #include <stdexcept>
 #include <assert.h>
 
@@ -262,6 +263,11 @@ inline void GlTexture::Download([[maybe_unused]] void* image,
 
 inline void GlTexture::Download(TypedImage& image) const
 {
+#ifndef HAVE_GLES
+    // Under GLES, several sized luminance formats are macro-mapped to the
+    // unsized GL_LUMINANCE (see gl_es_compat.h), which would produce duplicate
+    // case labels here. glGetTexImage (used by Download below) is unavailable
+    // on GLES anyway, so the whole switch is desktop-only.
     switch (internal_format)
     {
     case GL_LUMINANCE8:
@@ -335,7 +341,10 @@ inline void GlTexture::Download(TypedImage& image) const
             ")"
         );
     }
-
+#else
+    (void)image;
+    throw std::runtime_error("GlTexture::Download(TypedImage) is not available under HAVE_GLES (glGetTexImage unsupported).");
+#endif
 }
 
 inline void GlTexture::CopyFrom([[maybe_unused]] const GlTexture& tex)
@@ -786,7 +795,17 @@ inline void GlBufferData::Upload(const GLvoid* data, GLsizeiptr size_bytes, GLin
 inline void GlBufferData::Download(GLvoid* data, GLsizeiptr size_bytes, GLintptr offset) const
 {
     Bind();
+#ifndef HAVE_GLES
     glGetBufferSubData(buffer_type, offset, size_bytes, data);
+#else
+    // glGetBufferSubData is not part of OpenGL ES. Map the buffer range and
+    // memcpy as a fallback (glMapBufferRange is core in GLES3).
+    GLvoid* mapped = glMapBufferRange(buffer_type, offset, size_bytes, GL_MAP_READ_BIT);
+    if(mapped) {
+        std::memcpy(data, mapped, size_bytes);
+        glUnmapBuffer(buffer_type);
+    }
+#endif
     Unbind();
 }
 

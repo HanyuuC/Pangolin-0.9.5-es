@@ -27,7 +27,7 @@
 
 #pragma once
 
-#include <pangolin/gl/glplatform.h>
+#include <pangolin/gl/glinclude.h>
 #include <pangolin/gl/opengl_render_state.h>
 
 namespace pangolin {

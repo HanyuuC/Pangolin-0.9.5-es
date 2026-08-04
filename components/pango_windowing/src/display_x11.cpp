@@ -156,9 +156,15 @@ X11GlContext::X11GlContext(std::shared_ptr<X11Display>& xdisplay) : display(xdis
     EGLint ignore;
     EGLBoolean ok;
 
+#ifdef HAVE_GLES
+    ok = eglBindAPI(EGL_OPENGL_ES_API);
+    if (!ok)
+        error_fatal("eglBindAPI(0x%x) failed: %s", EGL_OPENGL_ES_API, getEGLErrorString().c_str());
+#else
     ok = eglBindAPI(EGL_OPENGL_API);
     if (!ok)
         error_fatal("eglBindAPI(0x%x) failed: %s", EGL_OPENGL_API, getEGLErrorString().c_str());
+#endif
     CheckEGLDieOnError();
 
     egl_display = eglGetDisplay(xdisplay->display);
@@ -190,7 +196,11 @@ X11GlContext::X11GlContext(std::shared_ptr<X11Display>& xdisplay) : display(xdis
         EGL_SAMPLES,               0,
 
         EGL_SURFACE_TYPE,          EGL_WINDOW_BIT,
+#ifdef HAVE_GLES
+        EGL_RENDERABLE_TYPE,       EGL_OPENGL_ES2_BIT,
+#else
         EGL_RENDERABLE_TYPE,       EGL_OPENGL_BIT,
+#endif
 
         EGL_NONE,
     };
@@ -213,6 +223,9 @@ X11GlContext::X11GlContext(std::shared_ptr<X11Display>& xdisplay) : display(xdis
     CheckEGLDieOnError();
 
     const EGLint egl_context_attribs[] = {
+#ifdef HAVE_GLES
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+#endif
         EGL_NONE,
     };
 

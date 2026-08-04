@@ -437,6 +437,7 @@ inline void GlSlProgram::SetUniform(const std::string& name, float f1, float f2,
     glUniform4f( GetUniformHandle(name), f1,f2,f3,f4);
 }
 
+#ifndef HAVE_GLES
 inline void GlSlProgram::SetUniform(const std::string& name, double f)
 {
     glUniform1d( GetUniformHandle(name), f);
@@ -456,6 +457,25 @@ inline void GlSlProgram::SetUniform(const std::string& name, double f1, double f
 {
     glUniform4d( GetUniformHandle(name), f1,f2,f3,f4);
 }
+#else
+// GLES has no double-precision uniforms; downcast to float.
+inline void GlSlProgram::SetUniform(const std::string& name, double f)
+{
+    glUniform1f( GetUniformHandle(name), (float)f);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, double f1, double f2)
+{
+    glUniform2f( GetUniformHandle(name), (float)f1,(float)f2);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, double f1, double f2, double f3)
+{
+    glUniform3f( GetUniformHandle(name), (float)f1,(float)f2,(float)f3);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, double f1, double f2, double f3, double f4)
+{
+    glUniform4f( GetUniformHandle(name), (float)f1,(float)f2,(float)f3,(float)f4);
+}
+#endif
 
 inline void GlSlProgram::SetUniform(const std::string& name, Colour c)
 {
@@ -498,6 +518,7 @@ inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Matrix
     glUniformMatrix4fv( GetUniformHandle(name), 1, GL_FALSE, m.data());
 }
 
+#ifndef HAVE_GLES
 inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Vector2d& v)
 {
     glUniform2d( GetUniformHandle(name), v[0], v[1]);
@@ -522,6 +543,39 @@ inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Matrix
 {
     glUniformMatrix4dv( GetUniformHandle(name), 1, GL_FALSE, m.data());
 }
+#else
+// GLES has no double-precision uniform uploaders; downcast to float.
+inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Vector2d& v)
+{
+    glUniform2f( GetUniformHandle(name), (float)v[0], (float)v[1]);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Vector3d& v)
+{
+    glUniform3f( GetUniformHandle(name), (float)v[0], (float)v[1], (float)v[2]);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Vector4d& v)
+{
+    glUniform4f( GetUniformHandle(name), (float)v[0], (float)v[1], (float)v[2], (float)v[3]);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Matrix2d& m)
+{
+    float tmp[4];
+    for(int i=0; i<4; ++i) tmp[i] = (float)m.data()[i];
+    glUniformMatrix2fv( GetUniformHandle(name), 1, GL_FALSE, tmp);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Matrix3d& m)
+{
+    float tmp[9];
+    for(int i=0; i<9; ++i) tmp[i] = (float)m.data()[i];
+    glUniformMatrix3fv( GetUniformHandle(name), 1, GL_FALSE, tmp);
+}
+inline void GlSlProgram::SetUniform(const std::string& name, const Eigen::Matrix4d& m)
+{
+    float tmp[16];
+    for(int i=0; i<16; ++i) tmp[i] = (float)m.data()[i];
+    glUniformMatrix4fv( GetUniformHandle(name), 1, GL_FALSE, tmp);
+}
+#endif
 #endif
 
 inline void GlSlProgram::BindPangolinDefaultAttribLocationsAndLink()

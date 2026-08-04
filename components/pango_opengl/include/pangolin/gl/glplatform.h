@@ -75,6 +75,23 @@
     #elif defined(_APPLE_IOS_)
         #include <OpenGLES/ES2/gl.h>
         #include <OpenGLES/ES2/glext.h>
+    #elif defined(_LINUX_)
+        // Note: do NOT include <EGL/egl.h> here. On Linux it pulls in X11 via
+        // eglplatform.h, and X11's `#define Success 0` corrupts Eigen's enums.
+        // GL headers don't need EGL; display_x11.cpp includes it directly.
+        // Use GLES3 headers (Mali-G610 supports GLES 3.2): they declare as core
+        // many tokens/functions (VAOs, glDrawBuffers, glReadBuffer, sized
+        // internal formats, GL_HALF_FLOAT, GL_DEPTH_COMPONENT24, ...) that the
+        // GLES2 compat layer (gl2engine.h) does not provide. The gl2engine
+        // shaders are GLES2-GLSL, which still run under a GLES3 context.
+        #ifdef HAVE_GLES_2
+            #include <GLES3/gl32.h>
+            #include <GLES3/gl3ext.h>
+        #else
+            #include <GLES/gl.h>
+            #define GL_GLEXT_PROTOTYPES
+            #include <GLES/glext.h>
+        #endif
     #endif
 #else
     #ifdef _OSX_

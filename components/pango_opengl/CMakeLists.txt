@@ -46,12 +46,26 @@ else()
     if(_LINUX_)
         # EGL specific
         set(OpenGL_GL_PREFERENCE "GLVND")
-        find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
-        find_package(epoxy REQUIRED)
-        target_link_libraries(${COMPONENT} PUBLIC OpenGL::OpenGL OpenGL::EGL)
-        target_link_libraries(${COMPONENT} PUBLIC ${epoxy_LIBRARIES})
-        target_include_directories(${COMPONENT} PUBLIC $<BUILD_INTERFACE:${epoxy_INCLUDE_DIRS}>)
-        target_compile_definitions(${COMPONENT} PUBLIC HAVE_EPOXY)
+        if(PANGOLIN_USE_GLES2)
+            # OpenGL ES 2 path (e.g. Mali GPU on RK3588). Link libGLESv2 directly
+            # and use <GLES2/gl2.h> instead of epoxy: <epoxy/gl.h> would declare
+            # desktop fixed-function symbols (glColor4f, ...) that clash with the
+            # inline emulations in compat/gl2engine.h. Same approach as Emscripten.
+            find_package(OpenGL REQUIRED COMPONENTS EGL)
+            find_library(GLES2_LIBRARY NAMES GLESv2 REQUIRED)
+            find_path(GLES2_INCLUDE_DIR GLES2/gl2.h)
+            target_include_directories(${COMPONENT} PUBLIC $<BUILD_INTERFACE:${GLES2_INCLUDE_DIR}>)
+            target_link_libraries(${COMPONENT} PUBLIC OpenGL::EGL ${GLES2_LIBRARY})
+            target_compile_definitions(${COMPONENT} PUBLIC HAVE_GLES HAVE_GLES_2)
+            target_sources( ${COMPONENT} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/compat/gl2engine.cpp)
+        else()
+            find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
+            find_package(epoxy REQUIRED)
+            target_link_libraries(${COMPONENT} PUBLIC OpenGL::OpenGL OpenGL::EGL)
+            target_link_libraries(${COMPONENT} PUBLIC ${epoxy_LIBRARIES})
+            target_include_directories(${COMPONENT} PUBLIC $<BUILD_INTERFACE:${epoxy_INCLUDE_DIRS}>)
+            target_compile_definitions(${COMPONENT} PUBLIC HAVE_EPOXY)
+        endif()
     else()
         # OpenGL defaults
         find_package(OpenGL REQUIRED)

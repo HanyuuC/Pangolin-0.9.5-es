@@ -28,6 +28,8 @@
 #pragma once
 
 #include <stack>
+#include <cmath>
+#include <cstring>
 
 #include <pangolin/gl/opengl_render_state.h>
 #include <pangolin/gl/glsl.h>
@@ -38,6 +40,14 @@ class GlEngine
 {
 public:
     const char* vert =
+        // Explicit GLSL ES 1.00 version: some Mali drivers default a shader
+        // with no #version directive to GLSL ES 3.00 inside a GLES3 context,
+        // where attribute/varying/gl_FragColor are removed and compilation
+        // fails silently (empty info log). #version 100 forces GLSL ES 1.00,
+        // which GLES3 contexts are required to support.
+        #ifdef HAVE_GLES_2
+            "#version 100\n"
+        #endif
             "attribute vec4 a_position;\n"
             "attribute vec4 a_color;\n"
             "attribute vec3 a_normal;\n"
@@ -54,6 +64,7 @@ public:
 
     const char* frag =
         #ifdef HAVE_GLES_2
+            "#version 100\n"
             "precision mediump float;\n"
         #endif // HAVE_GLES_2
             "varying vec4 v_frontColor;\n"
@@ -217,6 +228,16 @@ inline void glTexCoordPointer( GLint size, GLenum type, GLsizei stride, const GL
     glVertexAttribPointer(pangolin::DEFAULT_LOCATION_TEXCOORD, size, type, GL_FALSE, stride, pointer);
 }
 
+inline void glColorPointer( GLint size, GLenum type, GLsizei stride, const GLvoid * pointer)
+{
+    glVertexAttribPointer(pangolin::DEFAULT_LOCATION_COLOUR, size, type, GL_FALSE, stride, pointer);
+}
+
+inline void glNormalPointer( GLenum type, GLsizei stride, const GLvoid * pointer)
+{
+    glVertexAttribPointer(pangolin::DEFAULT_LOCATION_NORMAL, 3, type, GL_FALSE, stride, pointer);
+}
+
 inline void glMatrixMode(GLenum mode)
 {
     pangolin::GlEngine& gl = pangolin::glEngine();
@@ -280,6 +301,37 @@ inline void glTranslatef(GLfloat x, GLfloat y, GLfloat z )
     cm[12] += x;
     cm[13] += y;
     cm[14] += z;
+    gl.UpdateMatrices();
+}
+
+inline void glScalef(GLfloat x, GLfloat y, GLfloat z)
+{
+    pangolin::GlEngine& gl = pangolin::glEngine();
+    pangolin::GLprecision* cm = gl.currentmatrix->top().m;
+    for(int r=0; r<3; ++r) {
+        cm[0*4+r] *= x;
+        cm[1*4+r] *= y;
+        cm[2*4+r] *= z;
+    }
+    gl.UpdateMatrices();
+}
+
+inline void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
+{
+    // Post-multiply a rotation (M = M * R), matching desktop OpenGL semantics.
+    pangolin::GlEngine& gl = pangolin::glEngine();
+    float n = std::sqrt(x*x + y*y + z*z);
+    if(n == 0.0f) return;
+    x /= n; y /= n; z /= n;
+    float r = angle * (float)(M_PI / 180.0);
+    float c = std::cos(r), s = std::sin(r), t = 1.0f - c;
+    pangolin::OpenGlMatrix R;
+    std::memset(R.m, 0, sizeof(R.m));
+    R(0,0) = t*x*x + c;     R(0,1) = t*x*y - s*z;  R(0,2) = t*x*z + s*y;
+    R(1,0) = t*y*x + s*z;   R(1,1) = t*y*y + c;    R(1,2) = t*y*z - s*x;
+    R(2,0) = t*z*x - s*y;   R(2,1) = t*z*y + s*x;  R(2,2) = t*z*z + c;
+    R(3,3) = 1.0f;
+    gl.currentmatrix->top() = (*gl.currentmatrix).top() * R;
     gl.UpdateMatrices();
 }
 
