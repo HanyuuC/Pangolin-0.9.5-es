@@ -34,7 +34,7 @@ else()
             # systems OpenGL::EGL chains (via INTERFACE_LINK_LIBRARIES) to
             # OpenGL::OpenGL (libOpenGL.so.0), whose GL dispatch stubs shadow
             # Mali's real implementations and make every GL call return NULL/0.
-            # See pango_opengl/CMakeLists.txt and doc/bug.md.
+            # See pango_opengl/CMakeLists.txt and doc/Pangolin-RK3588-EGL-初始化失败.md § 1.6.
             target_link_libraries(${COMPONENT} PRIVATE ${OPENGL_egl_LIBRARY})
         else()
             target_link_libraries(${COMPONENT} PRIVATE OpenGL::EGL)

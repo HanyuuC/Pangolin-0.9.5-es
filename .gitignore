@@ -1,4 +1,5 @@
 .trae/
+out/
 .DS_Store
 CMakeLists.txt.user
 out/

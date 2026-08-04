@@ -83,7 +83,7 @@ cmake --build out/build/desktop -j
 
 ## 5. 解决的关键问题
 
-本次改造过程中依次解决三个叠加问题，详细排查见 [`0.1 Pangolin RK3588 EGL 初始化失败.md`](./0.1%20Pangolin%20RK3588%20EGL%20初始化失败.md)：
+本次改造过程中依次解决三个叠加问题，详细排查见 [`Pangolin-RK3588-EGL-初始化失败.md`](./Pangolin-RK3588-EGL-初始化失败.md)：
 
 | 阶段 | 问题 | 根因 | 修复 |
 |------|------|------|------|
@@ -136,13 +136,17 @@ RK3588 上 `PANGOLIN_USE_GLES2=ON` 全量编译通过（pango_opengl / pango_win
 
 ## 8. 已知限制
 
-1. **Wayland 后端未覆盖 GLES 守卫**：`display_wayland.cpp` 仍硬编码 `EGL_OPENGL_API`（L380/L892），未加 `#ifdef HAVE_GLES`。RK3588 上 Ubuntu 20.04 默认 X11 会话不受影响；若未来在纯 Wayland 会话（无 XWayland）运行需补此改造（3 处改动，工作量小）。
+1. **Wayland 后端未覆盖 GLES 守卫**（已评估，暂不改）：`display_wayland.cpp` 仍硬编码桌面 GL，未加 `#ifdef HAVE_GLES`。RK3588 上 Ubuntu 20.04 默认 X11 会话不受影响。经评估，改造存在 X11 路径没有的深层问题：
+   - **5 处改造点**（与 X11 同构）：L380 `attribs[]` 的 `EGL_OPENGL_BIT`→`EGL_OPENGL_ES2_BIT`（constexpr 静态数组需 `#ifdef` 包裹）、L892 `eglBindAPI`→`EGL_OPENGL_ES_API`、L904/L76/L156 三处 `eglCreateContext(..., nullptr)` 需加 `EGL_CONTEXT_CLIENT_VERSION, 2`。
+   - **多 context 共享问题**（核心障碍）：Wayland 后端有 3 个独立 EGL context——主窗口（L904）、ButtonSurface 装饰按钮（L76）、DecorationSurface 边框（L156），后两者 `eglCreateContext` 的 `share_context` 参数传 `EGL_NO_CONTEXT`（不共享 GL 对象）。而 `glEngine().prog_fixed` 是 thread_local 单例，只在主 context 下创建；装饰 surface 的 context 未共享 program 对象，其 `draw()` 用的固定管线（`glBegin`/`glVertex2f` 等）在 GLES 下会因无活跃 program 而静默丢弃。修复需把装饰 surface 的 `eglCreateContext` 第 3 参数改为传主 context（share_context），涉及构造函数签名重构。
+   - **无法验证**：当前无纯 Wayland 环境，编译可验证（装 `libwayland-dev` 等），运行时行为不可验证。
+   - 结论：暂不改，待未来有纯 Wayland 环境时连同多 context 共享问题一并解决。详见 `0.1` 文档评估记录。
 2. **GLES 3.x 硬性依赖**：当前 GLES 路径要求设备支持 GLES 3.x，不支持纯 GLES 2.0 设备。若需支持，需将 GLES 3 函数调用改为扩展查询守护。
 3. **Headless 后端未覆盖**：`display_headless.cpp` 未加 GLES 守卫，离屏渲染路径未验证。
 
 ## 9. 开发约束（持久化备忘）
 
-后续维护 Pangolin GLES 路径须遵守的硬约束与工程约定见 [`0.1 Pangolin RK3588 EGL 初始化失败.md` § 1.8](./0.1%20Pangolin%20RK3588%20EGL%20初始化失败.md#18-开发约束与工程约定持久化备忘)，要点：
+后续维护 Pangolin GLES 路径须遵守的硬约束与工程约定见 [`Pangolin-RK3588-EGL-初始化失败.md` § 1.8](./Pangolin-RK3588-EGL-初始化失败.md#18-开发约束与工程约定持久化备忘)，要点：
 
 - GLES 代码必须用 `#ifdef HAVE_GLES` / `#ifndef HAVE_GLES` 守卫，桌面 GL 路径源码不变
 - GLES 路径禁用 epoxy（与 `gl2engine.h` inline 定义冲突），直连 `<GLES2/gl2.h>` + `libGLESv2`
@@ -150,11 +154,62 @@ RK3588 上 `PANGOLIN_USE_GLES2=ON` 全量编译通过（pango_opengl / pango_win
 - 修改 GL 链接 CMakeLists 后必须全量重编所有目标（旧可执行文件 `NEEDED` 残留）
 - GLES 着色器必须显式 `#version 100`；`GlEngine` 构造函数末尾必须 `prog_fixed.Bind()`
 
-## 10. 文档索引
+## 10. 对使用者 API 的影响
+
+**结论：公开 API 签名完全不变，使用者应用程序源码无需修改。** 唯一需要做的是 CMake 构建配置（`PANGOLIN_USE_GLES2=ON/OFF`）。本次改造是纯内部实现层面（构建系统 + GLES 兼容层接线 + 运行时修复），不改变任何公开类的方法签名或类层次结构。
+
+### 10.1 GLES 模式下的 API 守卫（均为 Pangolin 原有设计，非本次改造引入）
+
+公开头文件中的 `HAVE_GLES` 守卫分三类：
+
+**A. 同签名不同实现（GLES 下行为等价，使用者无感）**
+
+| API | 桌面 GL | GLES | 文件 |
+|-----|--------|------|------|
+| `GlRenderBuffer::Reinitialise` | `glRenderbufferStorage` | 用 texture 模拟 | [gl.hpp:529-578](../components/pango_opengl/include/pangolin/gl/gl.hpp#L529-L578) |
+| `GlBufferData::Download` | `glGetBufferSubData` | `glMapBufferRange`+`memcpy` | [gl.hpp:794-809](../components/pango_opengl/include/pangolin/gl/gl.hpp#L794-L809) |
+
+**B. 同签名但 GLES 下抛异常（GLES 固有限制）**
+
+| API | GLES 下行为 | 文件 |
+|-----|-----------|------|
+| `GlTexture::Download(...)` | 抛异常（`glGetTexImage` 不可用） | [gl.hpp:256-260](../components/pango_opengl/include/pangolin/gl/gl.hpp#L256-L260) |
+| `GlBuffer::Resize`（已有数据时） | 抛异常 | [gl.hpp:877-889](../components/pango_opengl/include/pangolin/gl/gl.hpp#L877-L889) |
+
+**C. 类型/重载差异（编译期可见，使用者代码通常无需改）**
+
+| 差异 | 桌面 GL | GLES | 文件 |
+|------|--------|------|------|
+| `GLprecision` 类型别名 | `double` | `float` | [opengl_render_state.h:55-59](../components/pango_opengl/include/pangolin/gl/opengl_render_state.h#L55-L59) |
+| `glVertex(Eigen::Vector3d)` | 可用 | 不可用（float 版本可用） | [gldraw.h:318-323](../components/pango_opengl/include/pangolin/gl/gldraw.h#L318-L323) |
+| `Handler3D` | `= HandlerBase3D` | 指向含 blit copy 的派生类 | [handler.h:115-124](../components/pango_display/include/pangolin/handler/handler.h#L115-L124) |
+
+以上守卫在 Emscripten/Android 上一直存在，本次只是把同一路径接到 Linux。
+
+### 10.2 本次改造引入的内部变化（均不影响 API 签名）
+
+| 改动 | 性质 | 对使用者影响 |
+|------|------|------------|
+| `glsl.hpp` uniform 设置器 double→float 降级 | 同签名内部实现变化 | 无（调用方式不变） |
+| `gl.hpp` GlTexture::Download switch 守卫 | 死代码清理 | 无（GLES 下原本就 throw） |
+| `gl.hpp` GlBufferData::Download 改 `glMapBufferRange` | **改善** | GLES 下从"不可用"变为"可用" |
+| `gl2engine.h` 新增 `glColorPointer`/`glRotatef` 等 | GL 兼容函数补充 | 无（非 Pangolin API） |
+
+### 10.3 使用者构建配置
+
+使用者通过 `find_package(Pangolin)` 引入库，应用程序源码两种模式下通用：
+
+```cmake
+find_package(Pangolin REQUIRED)
+target_link_libraries(my_app PRIVATE pangolin::pangolin)
+```
+
+编译 Pangolin 时根据目标平台设置 `PANGOLIN_USE_GLES2`，使用者代码无需任何 `#ifdef`。
+
+## 11. 文档索引
 
 | 文档 | 内容 |
 |------|------|
 | [README.md](./README.md)（本文） | 改造总览与使用指南 |
-| [0.1 Pangolin RK3588 EGL 初始化失败.md](./0.1%20Pangolin%20RK3588%20EGL%20初始化失败.md) | 完整排查报告（1.1-1.8），含根因分析、修复方案、验证结果、开发约束 |
-| [bug.md](./bug.md) | Bug 记录与解决标记 |
-| [pangolin-rk3588-gles2-enablement.md](./pangolin-rk3588-gles2-enablement.md) | 设计阶段方案文档（注：部分内容已被后续修复超越，以 0.1 文档和本 README 为准） |
+| [Pangolin-RK3588-EGL-初始化失败.md](./Pangolin-RK3588-EGL-初始化失败.md) | 完整排查报告（1.1-1.8），含根因分析、修复方案、验证结果、开发约束 |
+| [pangolin-rk3588-gles2-enablement.md](./pangolin-rk3588-gles2-enablement.md) | 设计阶段方案文档（注：部分内容已被后续修复超越，以排查报告和本 README 为准） |

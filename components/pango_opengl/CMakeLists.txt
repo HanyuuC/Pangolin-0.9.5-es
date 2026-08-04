@@ -59,7 +59,7 @@ else()
             # exports glGetString / glCreateShader / ... as libglvnd dispatch
             # stubs which shadow Mali's real implementations; because libglvnd
             # does not track the EGL context created by Mali's libEGL, every GL
-            # call returns NULL / 0 (see doc/bug.md). Linking libEGL and
+            # call returns NULL / 0 (see doc/Pangolin-RK3588-EGL-初始化失败.md § 1.6). Linking libEGL and
             # libGLESv2 directly by path -- resolved at runtime by ldconfig to
             # Mali's copies -- keeps libOpenGL.so.0 out of the binary entirely.
             find_library(GLES2_LIBRARY NAMES GLESv2 REQUIRED)

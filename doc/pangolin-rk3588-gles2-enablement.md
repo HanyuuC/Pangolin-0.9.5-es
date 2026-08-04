@@ -7,7 +7,7 @@
 - 直接运行 `DISPLAY=:0 ./SimpleDisplay` 报 `eglBindAPI(0x30a2) failed: EGL_BAD_PARAMETER (300c)`。原因是 `display_x11.cpp:159` 绑定桌面 `EGL_OPENGL_API`，而 Mali EGL 驱动只支持 OpenGL ES。
 - 临时方案 `LD_LIBRARY_PATH=/lib/aarch64-linux-gnu ./SimpleDisplay` 可运行，但走的是 Mesa LLVMpipe **软件渲染**，所以"比较卡"。
 
-排查文档（`doc/0.1 Pangolin RK3588 EGL 初始化失败.md`）曾悲观估计"需要全面适配固定管线，工作量较大"。但实际代码审查发现：**Pangolin 已内置完整的 OpenGL ES 2 兼容层**（Emscripten/Android 一直在用），只是从未对 Linux 开启。本方案的目标是**启用这条已有 GLES 路径**，让 RK3588 直接使用 Mali 硬件加速的 `libGLESv2`，从而消除软件渲染卡顿。
+排查文档（`doc/Pangolin-RK3588-EGL-初始化失败.md`）曾悲观估计"需要全面适配固定管线，工作量较大"。但实际代码审查发现：**Pangolin 已内置完整的 OpenGL ES 2 兼容层**（Emscripten/Android 一直在用），只是从未对 Linux 开启。本方案的目标是**启用这条已有 GLES 路径**，让 RK3588 直接使用 Mali 硬件加速的 `libGLESv2`，从而消除软件渲染卡顿。
 
 ### 兼容性策略（已与用户确认）
 
