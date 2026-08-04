@@ -1,0 +1,50 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "msvc-build",
+            "displayName": "pangolin-0.9.5 msvc build",
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "generator": "Visual Studio 17 2022",
+            "toolset": "host=x64",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_DEBUG_POSTFIX": "d",
+                "CMAKE_RELEASE_POSTFIX": "",
+                "CMAKE_RELWITHDEBINFO_POSTFIX": "rd",
+                "CMAKE_MINSIZEREL_POSTFIX": "ms",
+                "BUILD_PANGOLIN_PYTHON": "OFF"
+            }
+        },
+        {
+            "name": "linux-arm64-build",
+            "displayName": "GCC 9.4.0 aarch64-linux-gnu",
+            "description": "Using compilers: C = /usr/bin/aarch64-linux-gnu-gcc, CXX = /usr/bin/aarch64-linux-gnu-g++",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "/usr/bin/aarch64-linux-gnu-gcc",
+                "CMAKE_CXX_COMPILER": "/usr/bin/aarch64-linux-gnu-g++",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "msvc-build-debug",
+            "displayName": "msvc-build-debug",
+            "configurePreset": "msvc-build",
+            "configuration": "Debug"
+        },
+        {
+            "name": "msvc-build-release",
+            "displayName": "msvc-build-release",
+            "configurePreset": "msvc-build",
+            "configuration": "Release"
+        }
+    ]
+}
