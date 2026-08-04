@@ -1,5 +1,7 @@
+.trae/
 .DS_Store
 CMakeLists.txt.user
+out/
 build*
 _builds
 _logs
