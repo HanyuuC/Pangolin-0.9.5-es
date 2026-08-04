@@ -29,7 +29,16 @@ else()
         target_sources( ${COMPONENT} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/display_x11.cpp )
         target_link_libraries(${COMPONENT} PRIVATE ${X11_LIBRARIES} )
         target_include_directories(${COMPONENT} PRIVATE ${X11_INCLUDE_DIR} )
-        target_link_libraries(${COMPONENT} PRIVATE OpenGL::EGL)
+        if(PANGOLIN_USE_GLES2)
+            # Link libEGL by raw path, not the OpenGL::EGL target: on libglvnd
+            # systems OpenGL::EGL chains (via INTERFACE_LINK_LIBRARIES) to
+            # OpenGL::OpenGL (libOpenGL.so.0), whose GL dispatch stubs shadow
+            # Mali's real implementations and make every GL call return NULL/0.
+            # See pango_opengl/CMakeLists.txt and doc/bug.md.
+            target_link_libraries(${COMPONENT} PRIVATE ${OPENGL_egl_LIBRARY})
+        else()
+            target_link_libraries(${COMPONENT} PRIVATE OpenGL::EGL)
+        endif()
         PangolinRegisterFactory(WindowInterface X11Window)
     endif()
 

@@ -347,7 +347,8 @@ X11Window::~X11Window()
 
 void X11Window::MakeCurrent(EGLContext ctx)
 {
-    if(eglMakeCurrent( glcontext->egl_display, glcontext->egl_surface, glcontext->egl_surface, ctx )==EGL_FALSE) {
+    EGLBoolean mc = eglMakeCurrent( glcontext->egl_display, glcontext->egl_surface, glcontext->egl_surface, ctx );
+    if(mc==EGL_FALSE) {
         const EGLint eglError = eglGetError();
         if(eglError==EGL_BAD_ACCESS) {
             std::cerr << "Received 'EGL_BAD_ACCESS' trying to set current EGL context." << std::endl;

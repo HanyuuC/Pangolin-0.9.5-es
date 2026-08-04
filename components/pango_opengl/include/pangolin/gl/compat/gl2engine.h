@@ -30,6 +30,7 @@
 #include <stack>
 #include <cmath>
 #include <cstring>
+#include <stdlib.h>
 
 #include <pangolin/gl/opengl_render_state.h>
 #include <pangolin/gl/glsl.h>
@@ -102,6 +103,15 @@ public:
         // Initialise default uniform values
         UpdateMatrices();
         SetColor(1.0,1.0,1.0,1.0);
+
+        // GLES has no fixed-function pipeline: prog_fixed must remain bound as
+        // the "default" program so that glDrawArrays / glDrawElements issued by
+        // the client-state emulation (glVertexPointer / glColorPointer / ...)
+        // actually render.  Once prog_fixed is the active program, the
+        // SaveBind / Unbind pattern used by UpdateMatrices / SetColor correctly
+        // saves and restores it, and custom shaders using SaveBind / Unbind
+        // will likewise restore prog_fixed when they unbind.
+        prog_fixed.Bind();
     }
 
     void UpdateMatrices()

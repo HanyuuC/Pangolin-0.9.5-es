@@ -1,6 +1,12 @@
 #pragma once
 
 #include <pangolin/gl/glsl.h>
+#ifdef HAVE_GLES
+// GLES has no fixed-function pipeline; glEngine().prog_fixed is the emulation.
+// Needed by UseNone() to rebind the fixed-function program instead of
+// glUseProgram(0) which would leave GLES with no active program.
+#include <pangolin/gl/compat/gl2engine.h>
+#endif
 
 namespace pangolin {
 
@@ -33,7 +39,15 @@ public:
 
     inline static void UseNone()
     {
+#ifdef HAVE_GLES
+        // GLES has no fixed-function pipeline: "use no custom shader" means
+        // rebind the fixed-function emulation program, not glUseProgram(0)
+        // which would leave GLES without an active program and silently drop
+        // all subsequent draw calls.
+        pangolin::glEngine().prog_fixed.Bind();
+#else
         glUseProgram(0);
+#endif
     }
 
 protected:

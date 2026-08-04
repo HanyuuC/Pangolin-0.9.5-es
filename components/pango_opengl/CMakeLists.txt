@@ -47,15 +47,30 @@ else()
         # EGL specific
         set(OpenGL_GL_PREFERENCE "GLVND")
         if(PANGOLIN_USE_GLES2)
-            # OpenGL ES 2 path (e.g. Mali GPU on RK3588). Link libGLESv2 directly
-            # and use <GLES2/gl2.h> instead of epoxy: <epoxy/gl.h> would declare
-            # desktop fixed-function symbols (glColor4f, ...) that clash with the
-            # inline emulations in compat/gl2engine.h. Same approach as Emscripten.
-            find_package(OpenGL REQUIRED COMPONENTS EGL)
+            # OpenGL ES 2 path (e.g. Mali GPU on RK3588). Link libGLESv2 and
+            # libEGL directly by path and use <GLES2/gl2.h> instead of epoxy:
+            # <epoxy/gl.h> would declare desktop fixed-function symbols
+            # (glColor4f, ...) that clash with the inline emulations in
+            # compat/gl2engine.h. Same approach as Emscripten.
+            #
+            # IMPORTANT: do NOT use the OpenGL::EGL CMake target here. On
+            # libglvnd systems OpenGL::EGL has an INTERFACE_LINK_LIBRARIES
+            # dependency on OpenGL::OpenGL (libOpenGL.so.0). That library
+            # exports glGetString / glCreateShader / ... as libglvnd dispatch
+            # stubs which shadow Mali's real implementations; because libglvnd
+            # does not track the EGL context created by Mali's libEGL, every GL
+            # call returns NULL / 0 (see doc/bug.md). Linking libEGL and
+            # libGLESv2 directly by path -- resolved at runtime by ldconfig to
+            # Mali's copies -- keeps libOpenGL.so.0 out of the binary entirely.
             find_library(GLES2_LIBRARY NAMES GLESv2 REQUIRED)
+            find_library(EGL_LIBRARY  NAMES EGL  REQUIRED)
             find_path(GLES2_INCLUDE_DIR GLES2/gl2.h)
-            target_include_directories(${COMPONENT} PUBLIC $<BUILD_INTERFACE:${GLES2_INCLUDE_DIR}>)
-            target_link_libraries(${COMPONENT} PUBLIC OpenGL::EGL ${GLES2_LIBRARY})
+            find_path(EGL_INCLUDE_DIR  EGL/egl.h)
+            target_include_directories(${COMPONENT} PUBLIC
+                $<BUILD_INTERFACE:${GLES2_INCLUDE_DIR}>
+                $<BUILD_INTERFACE:${EGL_INCLUDE_DIR}>
+            )
+            target_link_libraries(${COMPONENT} PUBLIC ${EGL_LIBRARY} ${GLES2_LIBRARY})
             target_compile_definitions(${COMPONENT} PUBLIC HAVE_GLES HAVE_GLES_2)
             target_sources( ${COMPONENT} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/compat/gl2engine.cpp)
         else()
