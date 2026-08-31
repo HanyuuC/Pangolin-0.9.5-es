@@ -5,7 +5,16 @@ Pangolin is a set of lightweight and portable utility libraries for prototyping 
 
 The general ethos of Pangolin is to minimize boilerplate and maximize portability and flexibility through simple interfaces and factories over things like windowing and video. It also offers a suite of utilities for interactive debugging, such as 3D manipulation, plotters, tweak variables, and a drop-down Quake-like console for python scripting and live tweaking.
 
+## fork简介
 
+在 RK3588（ARM64, Mali-G610 GPU）上启用 Pangolin 已有的 OpenGL ES 2 路径，实现 Mali 硬件加速渲染；同时保持桌面 OpenGL 路径源码完全不变。
+
+在3588上启用 OpenGL ES2 渲染后端构建:
+
+```bash
+cmake -B build -DPANGOLIN_USE_GLES2=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+```
 
 ## Main features
 
