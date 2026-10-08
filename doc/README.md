@@ -60,7 +60,7 @@ cmake --build out/build/desktop -j
 |------|------|
 | `CMakeLists.txt` | 新增 `option(PANGOLIN_USE_GLES2 ...)`；GCC 版本判断包裹 `-Wno-null-pointer-*`（GCC 9.4 无此选项，`-Werror` 会硬失败） |
 | `components/pango_opengl/CMakeLists.txt` | `_LINUX_` 分支按 `PANGOLIN_USE_GLES2` 二分：GLES 用 `find_library` 直连 `libGLESv2`/`libEGL` + `HAVE_GLES HAVE_GLES_2` + 编译 `gl2engine.cpp`；桌面保留 epoxy |
-| `components/pango_windowing/CMakeLists.txt` | X11 段 GLES 模式链接 `${OPENGL_egl_LIBRARY}` 而非 `OpenGL::EGL` target |
+| `components/pango_windowing/CMakeLists.txt` | X11 段 GLES 模式链接 `${OPENGL_egl_LIBRARY}` 而非 `OpenGL::EGL` target；Wayland 段加 `NOT PANGOLIN_USE_GLES2` 条件，GLES 构建排除该后端（回落 X11，见 § 8） |
 | `CMakePresets.json` | `linux-arm64-build` 置 `PANGOLIN_USE_GLES2=ON` |
 
 ### 4.2 GLES 路径接线
@@ -136,11 +136,11 @@ RK3588 上 `PANGOLIN_USE_GLES2=ON` 全量编译通过（pango_opengl / pango_win
 
 ## 8. 已知限制
 
-1. **Wayland 后端未覆盖 GLES 守卫**（已评估，暂不改）：`display_wayland.cpp` 仍硬编码桌面 GL，未加 `#ifdef HAVE_GLES`。RK3588 上 Ubuntu 20.04 默认 X11 会话不受影响。经评估，改造存在 X11 路径没有的深层问题：
-   - **5 处改造点**（与 X11 同构）：L380 `attribs[]` 的 `EGL_OPENGL_BIT`→`EGL_OPENGL_ES2_BIT`（constexpr 静态数组需 `#ifdef` 包裹）、L892 `eglBindAPI`→`EGL_OPENGL_ES_API`、L904/L76/L156 三处 `eglCreateContext(..., nullptr)` 需加 `EGL_CONTEXT_CLIENT_VERSION, 2`。
-   - **多 context 共享问题**（核心障碍）：Wayland 后端有 3 个独立 EGL context——主窗口（L904）、ButtonSurface 装饰按钮（L76）、DecorationSurface 边框（L156），后两者 `eglCreateContext` 的 `share_context` 参数传 `EGL_NO_CONTEXT`（不共享 GL 对象）。而 `glEngine().prog_fixed` 是 thread_local 单例，只在主 context 下创建；装饰 surface 的 context 未共享 program 对象，其 `draw()` 用的固定管线（`glBegin`/`glVertex2f` 等）在 GLES 下会因无活跃 program 而静默丢弃。修复需把装饰 surface 的 `eglCreateContext` 第 3 参数改为传主 context（share_context），涉及构造函数签名重构。
-   - **无法验证**：当前无纯 Wayland 环境，编译可验证（装 `libwayland-dev` 等），运行时行为不可验证。
-   - 结论：暂不改，待未来有纯 Wayland 环境时连同多 context 共享问题一并解决。详见 `0.1` 文档评估记录。
+1. **Wayland 后端不参与 GLES 构建**：`display_wayland.cpp` 硬编码桌面 GL，无 `#ifdef HAVE_GLES` 守卫。GLES 构建（`PANGOLIN_USE_GLES2=ON`）在 `components/pango_windowing/CMakeLists.txt` 中直接排除该后端，GLES 构建只提供 X11 后端，`PANGO_DEFAULT_WIN_URI` 回落为 `"x11"`。排除原因：
+   - **编译期过不了**：装饰 surface 的 `draw()` 用立即模式（`glBegin`/`glVertex2f`/`glEnd`）绘制关闭、最大化按钮。这是桌面 GL 专有 API，GLES 头（`<GLES3/gl32.h>`）不提供，`gl2engine.h` 兼容层也只模拟顶点数组式固定管线（`glVertexPointer`/`glDrawArrays` 等）、未定义立即模式入口；因此一旦环境装有 wayland 开发包（`wayland-client` + `wayland-protocols`），该文件被纳入编译即报 `glBegin was not declared in this scope`。
+   - **运行期另有障碍**：后端有 3 个独立 EGL context——主窗口、ButtonSurface 装饰按钮、DecorationSurface 边框，后两者 `eglCreateContext` 的 `share_context` 传 `EGL_NO_CONTEXT`（不共享 GL 对象）。而 `glEngine().prog_fixed` 是 thread_local 单例、只在主 context 下创建，装饰 surface 因未共享 program 而无法渲染；且该后端的 EGL 配置仍硬编码桌面 GL（`EGL_OPENGL_BIT` / `eglBindAPI(EGL_OPENGL_API)`），Mali EGL 不支持。
+   - **适用性**：RK3588 上 Ubuntu 20.04 默认 X11 会话不受影响；纯 Wayland 会话下 GLES 构建无可用窗口后端。待有纯 Wayland 环境时连同多 context 共享问题一并解决。
+   - **评估性质**：本项改造点评估来自静态源码分析，未经过实际编译验证——当时环境只有 wayland 运行时库、无开发包（`libwayland-dev` / `wayland-protocols`），pkg-config 找不到模块，`display_wayland.cpp` 从未参与编译，故遗漏了「编译期过不了」这一前置硬伤。实际编译验证需环境装有 wayland 开发包。
 2. **GLES 3.x 硬性依赖**：当前 GLES 路径要求设备支持 GLES 3.x，不支持纯 GLES 2.0 设备。若需支持，需将 GLES 3 函数调用改为扩展查询守护。
 3. **Headless 后端未覆盖**：`display_headless.cpp` 未加 GLES 守卫，离屏渲染路径未验证。
 

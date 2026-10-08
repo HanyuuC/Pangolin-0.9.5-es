@@ -16,6 +16,8 @@ cmake -B build -DPANGOLIN_USE_GLES2=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
 
+GLES 构建只提供 X11 窗口后端：Wayland 后端（`display_wayland.cpp`）被 CMake 排除，`PANGO_DEFAULT_WIN_URI` 回落为 `"x11"`。原因是该后端仍硬编码桌面 GL——装饰按钮用立即模式（`glBegin`/`glVertex2f`/`glEnd`）绘制，这些 API 在 GLES 头中不存在、兼容层也未提供，装有 wayland 开发包时会在编译期报错；其 EGL 配置同样硬编码桌面 GL，Mali 不支持。RK3588 上 Ubuntu 20.04 默认 X11 会话不受影响。详见 [doc/README.md § 8](doc/README.md#8-已知限制)。
+
 ## Main features
 
 * Cross Platform Windowing

@@ -43,10 +43,16 @@ else()
     endif()
 
     # Wayland
+    # Excluded from the GLES build (PANGOLIN_USE_GLES2=ON): display_wayland.cpp
+    # still hardcodes desktop GL (no HAVE_GLES guards) and renders its window
+    # decorations with immediate mode (glBegin/glVertex2f/glEnd), which OpenGL ES
+    # does not provide and the gl2engine.h compat layer does not emulate. Building
+    # it against GLES therefore fails. GLES builds fall through to the x11 branch
+    # below. See doc/README.md § 8 and doc/Pangolin-RK3588-EGL-初始化失败.md.
     find_package(PkgConfig)
     pkg_check_modules(WAYLAND_CLIENT wayland-client QUIET)
     pkg_check_modules(wayland-protocols QUIET wayland-protocols>=1.13)
-    if(WAYLAND_CLIENT_FOUND AND wayland-protocols_FOUND)
+    if(NOT PANGOLIN_USE_GLES2 AND WAYLAND_CLIENT_FOUND AND wayland-protocols_FOUND)
         pkg_check_modules(WAYLAND_EGL wayland-egl REQUIRED)
         pkg_check_modules(WAYLAND_CURSOR wayland-cursor REQUIRED)
         pkg_check_modules(xkbcommon REQUIRED xkbcommon)

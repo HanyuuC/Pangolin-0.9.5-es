@@ -402,6 +402,7 @@ inline static void UseNone() {
 | **GLES 代码必须守卫** | GLES 相关代码一律用 `#ifdef HAVE_GLES` / `#ifndef HAVE_GLES` 守卫，确保桌面 OpenGL 路径源码不受任何影响（两侧源码级同时兼容、互不影响） | 1.4.2 B |
 | **禁用 epoxy** | GLES 路径不能使用 epoxy 库——`<epoxy/gl.h>` 会声明 `glColor4f` 等桌面 GL 真实函数，与 `gl2engine.h` 中的 inline 定义冲突；必须像 Emscripten/Android 那样直接用 `<GLES2/gl2.h>` + 链接系统 `libGLESv2.so` | 1.4.2 A.3 |
 | **禁用 `OpenGL::EGL` CMake target** | GLES 模式下**禁止**使用 CMake 的 `OpenGL::EGL` target。它经 `INTERFACE_LINK_LIBRARIES` 链式拉入 `OpenGL::OpenGL`=`libOpenGL.so.0`，其调度桩符号覆盖 Mali 真实 GL 实现（`glGetString` 返回 NULL、`glCreateShader` 返回 0 且 `glGetError` 为 `GL_NO_ERROR`）。必须用 `find_library` 按路径直连 `libEGL.so` / `libGLESv2.so` | 1.6 |
+| **GLES 构建排除 Wayland 后端** | GLES 构建只提供 X11 窗口后端——`pango_windowing/CMakeLists.txt` 的 Wayland 段带 `NOT PANGOLIN_USE_GLES2` 条件，`PANGO_DEFAULT_WIN_URI` 回落 `"x11"`。原因：`display_wayland.cpp` 无 `HAVE_GLES` 守卫，装饰按钮用立即模式（`glBegin`/`glVertex2f`/`glEnd`，GLES 头无、兼容层未模拟）绘制，装有 wayland 开发包时编译期报错；其 EGL 配置亦硬编码桌面 GL。新增/接线窗口后端时须同步检查此项 | doc/README.md § 8 |
 
 ### 1.8.2. 工程约定（编码规范）
 
